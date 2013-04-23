@@ -6,6 +6,7 @@ Airport::Airport(int _id, double _x, double _y, double _z, std::string _name){
 	y = _y;
 	z = _z;
 	name = _name;
+	degree = 0;
 }
 
 Airport::~Airport(){
@@ -18,6 +19,7 @@ void Airport::setAirport(int _id, double _x, double _y, double _z, std::string _
 	y = _y;
 	z = _z;
 	name = _name;
+	degree = 0;
 }
 
 int Airport::getID(){

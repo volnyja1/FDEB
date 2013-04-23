@@ -31,6 +31,7 @@
 #include "pugixml.hpp"
 #include "Edge.h"
 #include <vector>
+#include <math.h>
 
 #define ILUT_USE_OPENGL
 
@@ -59,6 +60,9 @@ bool     g_UseShaders        = false;  // Programmable pipeline on/off
 bool     g_UseVertexShader   = false;  // Use vertex shader
 bool     g_UseGeometryShader = false;  // Use geometry shader
 bool     g_UseFragmentShader = false;  // Use fragment shader
+
+bool hide = false;
+bool antialiasing = false;
 
 enum EGeometry                         // Geometry type enum
 {
@@ -252,18 +256,38 @@ void drawSphere(){
 
 Airport normalize(Airport a){
 	double q = 3.0;
-	return Airport(a.getID(), (a.getX()-avgX)/q, (a.getY()-avgY)/q, a.getZ(), a.getName());
+	Airport normalized = Airport(a.getID(), (a.getX()-avgX)/q, (a.getY()-avgY)/q, a.getZ(), a.getName());
+	normalized.setDegree(a.getDegree());
+	return normalized;
 }
 
-void drawCircle(float x, float y, float r){
+void drawCircle(float x, float y, float z, float r){
 	float i;
 	float s = (3.14 * 2 / 25);
 	glBegin(GL_POLYGON);
 	for(i = 3.14; i >= -3.14; i -= s)
 	{
 		glNormal3f(0.0,0.0,1.0);
-		glVertex3f(x + sin(i) * r, y + cos(i) * r, 0.05);
+		glVertex3f(x + sin(i) * r, y + cos(i) * r, z);
 	}
+	glEnd();
+}
+
+void drawEdge(Airport source, Airport target){
+	glLineWidth (1.0f);
+	if(antialiasing){
+		glEnable (GL_LINE_SMOOTH);
+		glEnable (GL_BLEND);
+		glBlendFunc (GL_SRC_ALPHA_SATURATE, GL_ONE);
+		glHint (GL_LINE_SMOOTH_HINT, GL_NICEST);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	} else{
+		glDisable (GL_LINE_SMOOTH);
+	}
+	float eps = 0.04;
+	glBegin(GL_LINES);
+		glVertex3f(source.getX(), source.getY(), source.getZ()-eps);
+		glVertex3f(target.getX(), target.getY(), target.getZ()-eps);
 	glEnd();
 }
 
@@ -277,23 +301,28 @@ void drawPlane(){
 	glRotatef(-scene_rot, 0.0f, 1.0f, 0.0f);
 	float rotZ = 0.0f;
 	glRotatef(rotZ, 0.0f, 0.0f, 1.0f);
-	glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, textureID1);
-	glBegin(GL_QUADS);
-		glNormal3f(0.0,0.0,1.0);
-		glTexCoord2f(0.0,0.0);
-		glVertex3f(-x,-y,0.0);
-		glNormal3f(0.0,0.0,1.0);
-		glTexCoord2f(1.0,0.0);
-		glVertex3f(x,-y,0.0);
-		glNormal3f(0.0,0.0,1.0);
-		glTexCoord2f(1.0,1.0);
-		glVertex3f(x,y,0.0);
-		glNormal3f(0.0,0.0,1.0);
-		glTexCoord2f(0.0,1.0);
-		glVertex3f(-x,y,0.0);
-	glEnd();
+	if(!hide){
+		glEnable(GL_TEXTURE_2D);
+		glBindTexture(GL_TEXTURE_2D, textureID1);
+		glBegin(GL_QUADS);
+			glNormal3f(0.0,0.0,1.0);
+			glTexCoord2f(0.0,0.0);
+			glVertex3f(-x,-y,0.0);
+			glNormal3f(0.0,0.0,1.0);
+			glTexCoord2f(1.0,0.0);
+			glVertex3f(x,-y,0.0);
+			glNormal3f(0.0,0.0,1.0);
+			glTexCoord2f(1.0,1.0);
+			glVertex3f(x,y,0.0);
+			glNormal3f(0.0,0.0,1.0);
+			glTexCoord2f(0.0,1.0);
+			glVertex3f(-x,y,0.0);
+		glEnd();
+	}
+
 	glRotatef(-rotZ, 0.0f, 0.0f, 1.0f);
+
+
 	// airport points
 	glDisable(GL_TEXTURE);
 	glDisable(GL_TEXTURE_2D);
@@ -301,10 +330,20 @@ void drawPlane(){
 	GLfloat color[4] = {0.9f, 0.0f, 0.0f, 1.0f};
     glMaterialfv(GL_FRONT_AND_BACK,  GL_AMBIENT, color);
     glMaterialfv(GL_FRONT_AND_BACK,  GL_DIFFUSE, color);
-	//drawCircle(0, 0, 0.05);
 	for(vector<Airport>::iterator it = nodes.begin(); it != nodes.end(); it++){
 		Airport normalized = normalize(*it);
-		drawCircle(normalized.getX(), normalized.getY(), 1);
+		drawCircle(normalized.getX(), normalized.getY(), normalized.getZ(), normalized.getDegree()/258.0 + 0.5);
+	}
+
+	color[0] = 0.1f;
+	color[1] = 0.1f;
+	color[2] = 0.1f;
+    glMaterialfv(GL_FRONT_AND_BACK,  GL_AMBIENT, color);
+    glMaterialfv(GL_FRONT_AND_BACK,  GL_DIFFUSE, color);
+	for(vector<Edge>::iterator it = edges.begin(); it != edges.end(); it++){
+		Airport normalizedSource = normalize(nodes[it->getSourceID()]);
+		Airport normalizedTarget = normalize(nodes[it->getTargetID()]);
+		drawEdge(normalizedSource, normalizedTarget);
 	}
 
 	// default color
@@ -370,7 +409,6 @@ void cbDisplay()
     }
 }
 
-
 //-----------------------------------------------------------------------------
 // Name: cbInitGL()
 // Desc: 
@@ -412,7 +450,7 @@ void cbInitGL()
     //glLightfv(GL_LIGHT1, GL_SPECULAR	  , light_spe);
     //glLightf (GL_LIGHT1, GL_SPOT_CUTOFF	 , 24);
     //glLightf (GL_LIGHT1, GL_SPOT_EXPONENT , 128);
-
+	
     cbCompileShaderProgram(NULL);
 }
 
@@ -473,7 +511,6 @@ void TW_CALL cbCompileShaderProgram(void *clientData)
         printf("Shader program compiled successfully.\n\n");
     }
 }
-
 
 //-----------------------------------------------------------------------------
 // Name: initGUI()
@@ -562,7 +599,9 @@ void cbKeyboardChanged(int key, int action)
     case 'f' : g_UseFragmentShader = !g_UseFragmentShader;               break;
     case 'w' : g_WireMode          = !g_WireMode;                        break;
     case 'c' : g_FaceCulling       = !g_FaceCulling;                     break;
-    case 's' : g_UseShaders = !g_UseShaders;                             break;
+    case 's' : g_UseShaders			= !g_UseShaders;                     break;
+	case 'h' : hide					= !hide;                             break;
+	case 'a' : antialiasing			= !antialiasing;                     break;
     case 'b' : 
         cbCompileShaderProgram(NULL);
         return;
@@ -648,7 +687,7 @@ void parseXML(char* fileName){
 		if(!strcmp(it->name(), "node")){
 			double x = 0.0;
 			double y = 0.0;
-			double z = 0.0;
+			double z = 0.05;
 			string name = "";
 			for(pugi::xml_node_iterator it1 = it->begin(); it1 != it->end(); it1++) {
 				if(!strcmp(it1->attribute("key").as_string(), "x")){
@@ -682,6 +721,24 @@ void getAveragePoint(){
 	avgY = y1/nodes.size();
 }
 
+void processGraph(){
+	for(vector<Edge>::iterator it = edges.begin(); it != edges.end(); it++){
+		nodes[it->getSourceID()].increaseDegree();
+		nodes[it->getTargetID()].increaseDegree();
+	}
+
+	int max = 0;
+	int air = 0;
+	for(vector<Airport>::iterator it = nodes.begin(); it != nodes.end(); it++){
+		int deg = it->getDegree();
+		if(deg > max){
+			max = deg;
+			air = it->getID();
+		}
+	}
+	cout << "max: " << max << ", id: " << air << endl;
+}
+
 //-----------------------------------------------------------------------------
 // Name: main()
 // Desc: 
@@ -690,6 +747,7 @@ int main(int argc, char* argv[])
 {
 	parseXML(argv[1]);
 	getAveragePoint();
+	processGraph();
 	
     return common_main(g_WindowWidth, g_WindowHeight,
                        "[PGR2] Simple GLSL Example",
