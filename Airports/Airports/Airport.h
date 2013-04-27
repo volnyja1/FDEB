@@ -1,4 +1,5 @@
 #include <string>
+#include "Vector.h"
 
 class Airport{
 public:
@@ -13,8 +14,11 @@ public:
 	double getY();
 	double getZ();
 	std::string getName();
+	void setSelected(bool _selected);
+	bool getSelected();
 private:
 	std::string name;
 	double x, y, z;
 	int degree, id;
+	bool selected;
 };

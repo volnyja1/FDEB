@@ -7,6 +7,7 @@ Airport::Airport(int _id, double _x, double _y, double _z, std::string _name){
 	z = _z;
 	name = _name;
 	degree = 0;
+	selected = false;
 }
 
 Airport::~Airport(){
@@ -20,6 +21,7 @@ void Airport::setAirport(int _id, double _x, double _y, double _z, std::string _
 	z = _z;
 	name = _name;
 	degree = 0;
+	selected = false;
 }
 
 int Airport::getID(){
@@ -52,4 +54,12 @@ double Airport::getZ(){
 
 std::string Airport::getName(){
 	return name;
+}
+
+void Airport::setSelected(bool _selected){
+	selected = _selected;
+}
+
+bool Airport::getSelected(){
+	return selected;
 }
